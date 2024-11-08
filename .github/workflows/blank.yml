@@ -16,7 +16,7 @@ jobs:
             echo "is_main=true" >> $GITHUB_ENV
           else
             echo "is_main=false" >> $GITHUB_ENV
-
+          fi
       - name: Redirect to dev branch
         if: env.is_main == 'true'
         env:

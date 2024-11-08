@@ -1,23 +1,55 @@
-name: Redirect Pull Requests to dev
+name: Redirect Pull Requests to dev and Merge
 
 on:
   pull_request:
     types: [opened, edited, synchronize]
 
 jobs:
-  redirect-to-dev:
+  redirect-and-merge:
     runs-on: ubuntu-latest
 
     steps:
       - name: Check if PR is targeting main
         id: check_target_branch
-        run: echo "::set-output name=is_main::$(if [[ '${{ github.event.pull_request.base.ref }}' == 'main' ]]; then echo true; else echo false; fi)"
+        run: |
+          if [[ "${{ github.event.pull_request.base.ref }}" == "main" ]]; then
+            echo "is_main=true" >> $GITHUB_ENV
+          else
+            echo "is_main=false" >> $GITHUB_ENV
 
       - name: Redirect to dev branch
-        if: steps.check_target_branch.outputs.is_main == 'true'
+        if: env.is_main == 'true'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           curl -s -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} \
+            https://api.github.com/repos/$REPO/pulls/$PR_NUMBER \
             -d '{"base":"dev"}'
+
+      - name: Auto-merge into dev branch
+        if: env.is_main == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = process.env.PR_NUMBER;
+            const { data: pullRequest } = await github.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+            
+            if (pullRequest.base.ref === "dev") {
+              await github.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+              console.log(`PR #${prNumber} has been successfully merged into dev.`);
+            } else {
+              console.log(`PR #${prNumber} was not redirected to dev.`);
+            }

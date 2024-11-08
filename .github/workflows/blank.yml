@@ -1,36 +1,23 @@
-# This is a basic workflow to help you get started with Actions
+name: Redirect Pull Requests to dev
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    types: [opened, edited, synchronize]
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  redirect-to-dev:
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Check if PR is targeting main
+        id: check_target_branch
+        run: echo "::set-output name=is_main::$(if [[ '${{ github.event.pull_request.base.ref }}' == 'main' ]]; then echo true; else echo false; fi)"
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Redirect to dev branch
+        if: steps.check_target_branch.outputs.is_main == 'true'
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          curl -s -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} \
+            -d '{"base":"dev"}'

@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Check if PR targets main
         if: github.event.pull_request.base.ref == 'main'
         run: |
@@ -18,7 +21,7 @@ jobs:
 
           # Recreate a new PR to the 'dev' branch with the same title and body
           gh pr create --head "${{ github.event.pull_request.head.ref }}" --base "dev" --title "${{ github.event.pull_request.title }}" --body "${{ github.event.pull_request.body }}"
-          
+
           echo "Closed PR to 'main' and recreated it targeting 'dev'."
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}

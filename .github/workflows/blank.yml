@@ -1,57 +1,24 @@
-name: Redirect Pull Requests to dev and Merge
+# .github/workflows/redirect-pr-to-dev.yml
+name: Redirect PR to Dev
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, reopened]
 
 jobs:
-  redirect-and-merge:
+  redirect-pr-to-dev:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check if PR is targeting main
-        id: check_target_branch
+      - name: Check if PR targets main
+        if: github.event.pull_request.base.ref == 'main'
         run: |
-          if [[ "${{ github.event.pull_request.base.ref }}" == "main" ]]; then
-            echo "is_main=true" >> $GITHUB_ENV
-          else
-            echo "is_main=false" >> $GITHUB_ENV
-          fi
-      - name: Redirect to dev branch
-        if: env.is_main == 'true'
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
-        run: |
-          curl -s -X PATCH \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/$REPO/pulls/$PR_NUMBER \
-            -d '{"base":"dev"}'
+          # Close the original PR to main
+          gh pr close ${{ github.event.pull_request.number }}
 
-      - name: Auto-merge into dev branch
-        if: env.is_main == 'true'
+          # Recreate a new PR to the 'dev' branch with the same title and body
+          gh pr create --head "${{ github.event.pull_request.head.ref }}" --base "dev" --title "${{ github.event.pull_request.title }}" --body "${{ github.event.pull_request.body }}"
+          
+          echo "Closed PR to 'main' and recreated it targeting 'dev'."
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.TOKEN }}
-          script: |
-            const prNumber = parseInt(process.env.PR_NUMBER, 10);
-            const { data: pullRequest } = await github.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-            });
-            
-            if (pullRequest.base.ref === "dev") {
-              await github.pulls.merge({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-              });
-              console.log(`PR #${prNumber} has been successfully merged into dev.`);
-            } else {
-              console.log(`PR #${prNumber} was not redirected to dev.`);
-            }
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}

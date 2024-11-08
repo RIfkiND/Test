@@ -25,18 +25,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
         run: |
           curl -s -X PATCH \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/$REPO/pulls/$PR_NUMBER \
             -d '{"base":"dev"}'
 
       - name: Auto-merge into dev branch
         if: env.is_main == 'true'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.TOKEN }}
           script: |
-            const prNumber = process.env.PR_NUMBER;
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
             const { data: pullRequest } = await github.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,

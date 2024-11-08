@@ -1,27 +1,23 @@
-# .github/workflows/redirect-pr-to-dev.yml
-name: Redirect PR to Dev
+name: Redirect Pull Requests to dev
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, edited, synchronize]
 
 jobs:
-  redirect-pr-to-dev:
+  redirect-to-dev:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Check if PR is targeting main
+        id: check_target_branch
+        run: echo "::set-output name=is_main::$(if [[ '${{ github.event.pull_request.base.ref }}' == 'main' ]]; then echo true; else echo false; fi)"
 
-      - name: Check if PR targets main
-        if: github.event.pull_request.base.ref == 'main'
+      - name: Redirect to dev branch
+        if: steps.check_target_branch.outputs.is_main == 'true'
         run: |
-          # Close the original PR to main
-          gh pr close ${{ github.event.pull_request.number }}
-
-          # Recreate a new PR to the 'dev' branch with the same title and body
-          gh pr create --head "${{ github.event.pull_request.head.ref }}" --base "dev" --title "${{ github.event.pull_request.title }}" --body "${{ github.event.pull_request.body }}"
-
-          echo "Closed PR to 'main' and recreated it targeting 'dev'."
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          curl -s -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} \
+            -d '{"base":"dev"}'

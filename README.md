@@ -1,2 +1,3 @@
 #aneh os
 ---
+no error
